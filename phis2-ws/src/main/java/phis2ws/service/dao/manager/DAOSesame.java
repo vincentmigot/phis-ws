@@ -6,7 +6,7 @@
 // Copyright © - INRA - 2016
 // Creation date: august 2016
 // Contact:arnaud.charleroy@inra.fr, anne.tireau@inra.fr, pascal.neveu@inra.fr
-// Last modification date:  October, 2016
+// Last modification date: 11 jan. 2019
 // Subject:This abstract class is the base of all Dao class for the Sesame TripleStore 
 //***********************************************************************************************
 package phis2ws.service.dao.manager;
@@ -14,6 +14,14 @@ package phis2ws.service.dao.manager;
 import java.util.List;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
+import org.apache.jena.arq.querybuilder.UpdateBuilder;
+import org.apache.jena.graph.Node;
+import org.apache.jena.graph.NodeFactory;
+import org.apache.jena.rdf.model.Property;
+import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.rdf.model.ResourceFactory;
+import org.apache.jena.sparql.modify.request.UpdateDeleteWhere;
+import static org.apache.jena.sparql.vocabulary.VocabTestQuery.query;
 import org.eclipse.rdf4j.query.BooleanQuery;
 import org.eclipse.rdf4j.query.MalformedQueryException;
 import org.eclipse.rdf4j.query.QueryEvaluationException;
@@ -26,16 +34,21 @@ import org.eclipse.rdf4j.repository.Repository;
 import org.eclipse.rdf4j.repository.RepositoryConnection;
 import org.eclipse.rdf4j.repository.RepositoryException;
 import org.eclipse.rdf4j.repository.http.HTTPRepository;
+import org.joda.time.DateTime;
+import org.joda.time.format.DateTimeFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import phis2ws.service.PropertiesFileManager;
 import phis2ws.service.authentication.TokenManager;
+import phis2ws.service.configuration.DateFormat;
 import phis2ws.service.configuration.DefaultBrapiPaginationValues;
 import phis2ws.service.configuration.URINamespaces;
 import phis2ws.service.documentation.StatusCodeMsg;
 import phis2ws.service.model.User;
+import phis2ws.service.ontologies.Xsd;
+import phis2ws.service.utils.dates.Dates;
 import phis2ws.service.utils.sparql.SPARQLQueryBuilder;
-import phis2ws.service.utils.sparql.SPARQLUpdateBuilder;
+import phis2ws.service.utils.sparql.SPARQLStringBuilder;
 import phis2ws.service.view.brapi.Status;
 import phis2ws.service.view.brapi.form.ResponseFormPOST;
 
@@ -45,6 +58,7 @@ import phis2ws.service.view.brapi.form.ResponseFormPOST;
  *
  * @author Arnaud Charleroy
  * @update [Morgane Vidal] 04 Oct, 2018 : Rename existObject to existUri and change the query of the method existUri.
+ * @update [Andréas Garcia] 11 Jan, 2019 : Add generic date time stamp comparison SparQL filter.
  * @param <T>
  */
 public abstract class DAOSesame<T> {
@@ -62,14 +76,30 @@ public abstract class DAOSesame<T> {
     
     protected static final String COUNT_ELEMENT_QUERY = "count";
     
-    //The following constants are the constants used for each subclass to query the triplestore.
+    /**
+     * The following constants are SPARQL variables name used for each subclass 
+     * to query the triplestore.
+     */
     protected static final String URI = "uri";
+    protected static final String URI_SELECT_NAME_SPARQL = "?" + URI;
     protected static final String RDF_TYPE = "rdfType";
+    protected static final String RDF_TYPE_SELECT_NAME_SPARQL = "?" + RDF_TYPE;
     protected static final String LABEL = "label";
     protected static final String COMMENT = "comment";
     
+    protected static final String DATETIME_SELECT_NAME = "dateTime";
+    protected static final String DATETIME_SELECT_NAME_SPARQL = "?" + DATETIME_SELECT_NAME;
+    
+    protected static final String DATE_RANGE_START_DATETIME_SELECT_NAME = "dateRangeStartDateTime";
+    protected static final String DATE_RANGE_START_DATETIME_SELECT_NAME_SPARQL = "?" + DATE_RANGE_START_DATETIME_SELECT_NAME;
+    
+    protected static final String DATE_RANGE_END_DATETIME_SELECT_NAME = "dateRangeEndDateTime";
+    protected static final String DATE_RANGE_END_DATETIME_SELECT_NAME_SPARQL = "?" + DATE_RANGE_END_DATETIME_SELECT_NAME;
+    
+    protected final String DATETIMESTAMP_FORMAT_SPARQL = DateFormat.YMDTHMSZZ.toString();
+    
     //Triplestore relations
-    protected final static URINamespaces ONTOLOGIES = new URINamespaces();
+    protected static final URINamespaces ONTOLOGIES = new URINamespaces();
 
     protected static Repository rep;
     private RepositoryConnection connection;
@@ -277,6 +307,65 @@ public abstract class DAOSesame<T> {
      * @return SPARQLQueryBuilder
      */
     abstract protected SPARQLQueryBuilder prepareSearchQuery();
+    
+    /** Add a filter to the search query comparing a SPARQL dateTimeStamp 
+     * variable to a date. 
+     * SPARQL dateTimeStamp dates have to be handled in a specific way as 
+     * the comparison operators (<, >, etc.) aren't available for dateTimeStamp
+     * objects.
+     * @see <a href="https://www.w3.org/TR/2013/REC-sparql11-query-20130321/#OperatorMapping">
+     * SparQL Operator Mapping
+     * </a>
+     * @param query
+     * @param filterDateString
+     * @param filterDateFormat
+     * @param filterDateSparqlVariable SPARQL variable (?abc format)
+     * @param comparisonSign e.g >, >=, <, <= 
+     * @param dateTimeStampToCompareSparqlVariable the SPARQL variable 
+     * (?abc format) of the dateTimeStamp to which the date has to be compared
+     * @example SparQL code added to the query :
+     *   BIND(xsd:dateTime(str("2017-09-10T12:00:00+01:00")) as ?dateRangeStartDateTime) .
+     *   FILTER ( (?dateRangeStartDateTime <= ?dateTime) ) 
+     */
+    protected void filterSearchQueryWithDateTimeStampComparison( SPARQLStringBuilder query, String filterDateString, String filterDateFormat, String filterDateSparqlVariable, String comparisonSign, String dateTimeStampToCompareSparqlVariable){
+        
+        DateTime filterDate = Dates.stringToDateTimeWithGivenPattern(filterDateString, filterDateFormat);
+        
+        String filterDateStringInSparqlDateTimeStampFormat = DateTimeFormat.forPattern(DATETIMESTAMP_FORMAT_SPARQL).print(filterDate);
+
+        query.appendToBody("\nBIND(<" + Xsd.FUNCTION_DATETIME.toString() + ">(str(\"" + filterDateStringInSparqlDateTimeStampFormat + "\")) as " + filterDateSparqlVariable + ") .");
+        
+        query.appendAndFilter(filterDateSparqlVariable + comparisonSign + dateTimeStampToCompareSparqlVariable);
+    }
+
+    /**
+     * Append a filter to select only the results whose datetime is 
+     * included in the date range in parameter
+     * @param query
+     * @param filterRangeDatesStringFormat
+     * @param filterRangeStartDateString
+     * @param filterRangeEndDateString
+     * @param dateTimeStampToCompareSparqleVariable the SPARQL variable (?abc 
+     * format) of the dateTimeStamp to compare to the range
+     * @example SparQL code added to the query :
+     *   BIND(xsd:dateTime(str(?dateTimeStamp)) as ?dateTime) .
+     *   BIND(xsd:dateTime(str("2017-09-10T12:00:00+01:00")) as ?dateRangeStartDateTime) .
+     *   BIND(xsd:dateTime(str("2017-09-12T12:00:00+01:00")) as ?dateRangeEndDateTime) .
+     *   FILTER ( (?dateRangeStartDateTime <= ?dateTime) && (?dateRangeEndDateTime >= ?dateTime) ) 
+     */
+    protected void filterSearchQueryWithDateRangeComparisonWithDateTimeStamp(SPARQLStringBuilder query, String filterRangeDatesStringFormat, String filterRangeStartDateString, String filterRangeEndDateString, String dateTimeStampToCompareSparqleVariable){
+        
+        query.appendToBody("\nBIND(<" + Xsd.FUNCTION_DATETIME.toString() 
+                + ">(str(" + dateTimeStampToCompareSparqleVariable 
+                + ")) as " + DATETIME_SELECT_NAME_SPARQL + ") .");
+        
+        if (filterRangeStartDateString != null){
+            filterSearchQueryWithDateTimeStampComparison(query, filterRangeStartDateString, filterRangeDatesStringFormat, DATE_RANGE_START_DATETIME_SELECT_NAME_SPARQL, " <= ", DATETIME_SELECT_NAME_SPARQL);
+        }
+        if (filterRangeEndDateString != null){
+            filterSearchQueryWithDateTimeStampComparison(query, filterRangeEndDateString, filterRangeDatesStringFormat, DATE_RANGE_END_DATETIME_SELECT_NAME_SPARQL, " >= ", DATETIME_SELECT_NAME_SPARQL);
+        }
+    }
 
     /**
      * Compte le nombre d'élement retournés par la requête
@@ -330,16 +419,21 @@ public abstract class DAOSesame<T> {
      */
     protected boolean addObjectProperties(String subjectUri, String predicateUri, List<String> objectPropertiesUris, String graphUri) {
         //Generates insert query
-        SPARQLUpdateBuilder query = new SPARQLUpdateBuilder();
-        query.appendGraphURI(graphUri);
+        UpdateBuilder spql = new UpdateBuilder();
+        Node graph  = NodeFactory.createURI(graphUri);
+        
         objectPropertiesUris.forEach((objectProperty) -> {
-            query.appendTriplet(subjectUri, predicateUri, objectProperty, null);
+            Node subjectUriNode  = NodeFactory.createURI(subjectUri);
+            Node predicateUriNode  = NodeFactory.createURI(predicateUri);
+            Node objectPropertyNode  = NodeFactory.createURI(objectProperty);
+            
+            spql.addInsert(graph, subjectUriNode, predicateUriNode, objectPropertyNode);
         });
         
         LOGGER.debug(SPARQL_SELECT_QUERY + query.toString());
         
         //Insert the properties in the triplestore
-        Update prepareUpdate = getConnection().prepareUpdate(QueryLanguage.SPARQL, query.toString());
+        Update prepareUpdate = getConnection().prepareUpdate(QueryLanguage.SPARQL, spql.buildRequest().toString());
         try {
             prepareUpdate.execute();
         } catch (UpdateExecutionException ex) {
@@ -364,18 +458,21 @@ public abstract class DAOSesame<T> {
      */
     protected boolean deleteObjectProperties(String subjectUri, String predicateUri, List<String> objectPropertiesUris) {
         //1. Generates delete query
-        String deleteQuery = "DELETE WHERE { ";
+        UpdateBuilder query = new UpdateBuilder();
+        
+        Resource subject = ResourceFactory.createResource(subjectUri);
+        Property predicate = ResourceFactory.createProperty(predicateUri);        
         
         for (String objectProperty : objectPropertiesUris) {
-            deleteQuery += "<" + subjectUri + "> <" + predicateUri + "> <" + objectProperty + "> . ";
+            Node object = NodeFactory.createURI(objectProperty);
+            query.addWhere(subject, predicate, object);
         }
         
-        deleteQuery += " }";
-        
-        LOGGER.debug(deleteQuery);
+        UpdateDeleteWhere request = query.buildDeleteWhere();
+        LOGGER.debug(request.toString());
         
         //2. Delete data in the triplestore
-        Update prepareDelete = getConnection().prepareUpdate(QueryLanguage.SPARQL, deleteQuery);
+        Update prepareDelete = getConnection().prepareUpdate(QueryLanguage.SPARQL, request.toString());
         try {
             prepareDelete.execute();
         } catch (UpdateExecutionException ex) {

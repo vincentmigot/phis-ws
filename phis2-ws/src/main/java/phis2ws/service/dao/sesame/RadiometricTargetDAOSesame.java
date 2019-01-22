@@ -7,9 +7,19 @@
 //******************************************************************************
 package phis2ws.service.dao.sesame;
 
+import ch.qos.logback.core.CoreConstants;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import org.apache.jena.arq.querybuilder.UpdateBuilder;
+import org.apache.jena.graph.Node;
+import org.apache.jena.graph.NodeFactory;
+import org.apache.jena.rdf.model.Literal;
+import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.rdf.model.ResourceFactory;
+import org.apache.jena.update.UpdateRequest;
+import org.apache.jena.vocabulary.RDF;
+import org.apache.jena.vocabulary.RDFS;
 import org.eclipse.rdf4j.query.BindingSet;
 import org.eclipse.rdf4j.query.MalformedQueryException;
 import org.eclipse.rdf4j.query.QueryEvaluationException;
@@ -30,7 +40,6 @@ import phis2ws.service.ontologies.Vocabulary;
 import phis2ws.service.utils.POSTResultsReturn;
 import phis2ws.service.utils.UriGenerator;
 import phis2ws.service.utils.sparql.SPARQLQueryBuilder;
-import phis2ws.service.utils.sparql.SPARQLUpdateBuilder;
 import phis2ws.service.view.brapi.Status;
 import phis2ws.service.view.model.phis.Property;
 import phis2ws.service.view.model.phis.RadiometricTarget;
@@ -107,7 +116,7 @@ public class RadiometricTargetDAOSesame extends DAOSesame<RadiometricTarget> {
     
     /**
      * Get the radiometric targets (uri, label) of the triplestore.
-     * @return the list of the radiometric target founded
+     * @return the list of the radiometric target found
      */
     public ArrayList<RadiometricTarget> allPaginate() {
         SPARQLQueryBuilder query = prepareSearchQuery();
@@ -172,7 +181,7 @@ public class RadiometricTargetDAOSesame extends DAOSesame<RadiometricTarget> {
      * Check the given list of radiometric targets (check properties domain, etc.)
      * @param radiometricTargets
      * @see PropertyDAOSesame
-     * @return the result with the list of the founded errors (empty if no error)
+     * @return the result with the list of the found errors (empty if no error)
      */
     public POSTResultsReturn check(List<RadiometricTarget> radiometricTargets) {
         POSTResultsReturn checkResult = null;
@@ -246,24 +255,34 @@ public class RadiometricTargetDAOSesame extends DAOSesame<RadiometricTarget> {
      *      }
      * }
      */
-    private SPARQLUpdateBuilder prepareInsertQuery(RadiometricTarget radiometricTarget) {
-        SPARQLUpdateBuilder query = new SPARQLUpdateBuilder();
+    private UpdateRequest prepareInsertQuery(RadiometricTarget radiometricTarget) {
+        UpdateBuilder spql = new UpdateBuilder();
         
-        query.appendGraphURI(Contexts.RADIOMETRIC_TARGETS.toString());
-        query.appendTriplet(radiometricTarget.getUri(), Rdf.RELATION_TYPE.toString(), Vocabulary.CONCEPT_RADIOMETRIC_TARGET.toString(), null);
-        query.appendTriplet(radiometricTarget.getUri(), Rdfs.RELATION_LABEL.toString(), "\"" + radiometricTarget.getLabel() + "\"", null);
+        Node graph = NodeFactory.createURI(Contexts.RADIOMETRIC_TARGETS.toString());
+        Resource radiometricTargetUri = ResourceFactory.createResource(radiometricTarget.getUri());
+        Node radiometricTargetConcept = NodeFactory.createURI(Vocabulary.CONCEPT_RADIOMETRIC_TARGET.toString());
+        
+        spql.addInsert(graph, radiometricTargetUri, RDF.type, radiometricTargetConcept);
+        spql.addInsert(graph, radiometricTargetUri, RDFS.label, radiometricTarget.getLabel());
         
         for (Property property : radiometricTarget.getProperties()) {
             if (property.getValue() != null) {
+                org.apache.jena.rdf.model.Property propertyRelation = ResourceFactory.createProperty(property.getRelation());
+                
                 if (property.getRdfType() != null) {
-                    query.appendTriplet(radiometricTarget.getUri(), property.getRelation(), property.getValue(), null);
-                    query.appendTriplet(property.getValue(), Rdf.RELATION_TYPE.toString(), property.getRdfType(), null);
+                    Node propertyValue = NodeFactory.createURI(property.getValue());
+                    spql.addInsert(graph, radiometricTargetUri, propertyRelation, propertyValue);
+                    spql.addInsert(graph, propertyValue, RDF.type, property.getRdfType());
                 } else {
-                    query.appendTriplet(radiometricTarget.getUri(), property.getRelation(), "\"" + property.getValue() + "\"", null);
+                    Literal propertyValue = ResourceFactory.createStringLiteral(property.getValue());
+                    spql.addInsert(graph, radiometricTargetUri, propertyRelation, propertyValue);
                 }
             }
         }
+        
+        UpdateRequest query = spql.buildRequest();
         LOGGER.debug(SPARQL_SELECT_QUERY + " " + query.toString());
+        
         return query;
     }
     
@@ -290,7 +309,7 @@ public class RadiometricTargetDAOSesame extends DAOSesame<RadiometricTarget> {
             //Generate uri
             radiometricTarget.setUri(uriGenerator.generateNewInstanceUri(Vocabulary.CONCEPT_RADIOMETRIC_TARGET.toString(), null, null));
             //Insert radiometric target
-            SPARQLUpdateBuilder query = prepareInsertQuery(radiometricTarget);
+            UpdateRequest query = prepareInsertQuery(radiometricTarget);
             
             try {
                 Update prepareUpdate = getConnection().prepareUpdate(QueryLanguage.SPARQL, query.toString());
@@ -331,14 +350,14 @@ public class RadiometricTargetDAOSesame extends DAOSesame<RadiometricTarget> {
     /**
      * Check and insert the given radiometric targets in the triplestore
      * @param radiometricTargets
-     * @return the insertion result. Message error if errors founded in data
+     * @return the insertion result. Message error if errors found in data
      *         the list of the generated uri of the radiometric targets if the insertion has been done
      */
     public POSTResultsReturn checkAndInsert(List<RadiometricTarget> radiometricTargets) {
         POSTResultsReturn checkResult = check(radiometricTargets);
         if (checkResult.getDataState()) {
             return insert(radiometricTargets);
-        } else { //errors founded in data
+        } else { //errors found in data
             return checkResult;
         }
     }
@@ -348,29 +367,52 @@ public class RadiometricTargetDAOSesame extends DAOSesame<RadiometricTarget> {
      * Delete all the occurrences of each relation of the properties of the radiometric target.
      * @param radiometricTarget
      * @example
-     * DELETE WHERE { 
-     *      <http://www.phenome-fppn.fr/id/radiometricTargets/rt007> <http://www.w3.org/2000/01/rdf-schema#label> ?label . 
-     *      <http://www.phenome-fppn.fr/id/radiometricTargets/rt007> <http://www.phenome-fppn.fr/vocabulary/2017#hasBrand> ?v0 . 
-     *      <http://www.phenome-fppn.fr/id/radiometricTargets/rt007> <http://www.phenome-fppn.fr/vocabulary/2017#inServiceDate> ?v1 . 
-     *      <http://www.phenome-fppn.fr/id/radiometricTargets/rt007> <http://www.phenome-fppn.fr/vocabulary/2017#hasTechnicalContact> ?v2 . 
-     *      <http://www.phenome-fppn.fr/id/radiometricTargets/rt007> <http://www.phenome-fppn.fr/vocabulary/2017#hasRadiometricTargetMaterial> ?v3 . 
-     *      <http://www.phenome-fppn.fr/id/radiometricTargets/rt007> <http://www.phenome-fppn.fr/vocabulary/2017#hasShape> ?v4 .  
-     * }
+     *  DELETE DATA {
+     *    GRAPH <http://www.phenome-fppn.fr/diaphen/set/radiometricTargets> {
+     *      <http://www.phenome-fppn.fr/diaphen/id/radiometricTargets/rt004> <http://www.w3.org/2000/01/rdf-schema#label> "label" .
+     *      <http://www.phenome-fppn.fr/diaphen/id/radiometricTargets/rt004> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.phenome-fppn.fr/vocabulary/2017#RadiometricTarget> .
+     *      <http://www.phenome-fppn.fr/vocabulary/2017#RadiometricTarget> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> "http://www.w3.org/2002/07/owl#Class" .
+     *      <http://www.phenome-fppn.fr/diaphen/id/radiometricTargets/rt004> <http://www.phenome-fppn.fr/vocabulary/2017#hasBrand> "brand" .
+     *      <http://www.phenome-fppn.fr/diaphen/id/radiometricTargets/rt004> <http://www.phenome-fppn.fr/vocabulary/2017#hasRadiometricTargetMaterial> "carpet" .
+     *      <http://www.phenome-fppn.fr/diaphen/id/radiometricTargets/rt004> <http://www.phenome-fppn.fr/vocabulary/2017#hasShape> "rectangular" .
+     *      <http://www.phenome-fppn.fr/diaphen/id/radiometricTargets/rt004> <http://www.phenome-fppn.fr/vocabulary/2017#dateOfLastCalibration> "2019-01-03" .
+     *      <http://www.phenome-fppn.fr/diaphen/id/radiometricTargets/rt004> <http://www.phenome-fppn.fr/vocabulary/2017#dateOfPurchase> "2019-01-02" .
+     *      <http://www.phenome-fppn.fr/diaphen/id/radiometricTargets/rt004> <http://www.phenome-fppn.fr/vocabulary/2017#hasShapeLength> "31" .
+     *      <http://www.phenome-fppn.fr/diaphen/id/radiometricTargets/rt004> <http://www.phenome-fppn.fr/vocabulary/2017#hasShapeWidth> "45" .
+     *      <http://www.phenome-fppn.fr/diaphen/id/radiometricTargets/rt004> <http://www.phenome-fppn.fr/vocabulary/2017#hasTechnicalContact> "admin@phis.fr" .
+     *      <http://www.phenome-fppn.fr/diaphen/id/radiometricTargets/rt004> <http://www.phenome-fppn.fr/vocabulary/2017#inServiceDate> "2019-01-01" .
+     *      <http://www.phenome-fppn.fr/diaphen/id/radiometricTargets/rt004> <http://www.phenome-fppn.fr/vocabulary/2017#serialNumber> "serial" .
+     *    }
+     *  }
      * @return the query
      */
-    private String prepareDeleteQuery(RadiometricTarget radiometricTarget) {
-        String query = "DELETE WHERE { "
-                + "<" + radiometricTarget.getUri() + "> <" + Rdfs.RELATION_LABEL.toString() + "> ?label . ";
+    private UpdateRequest prepareDeleteQuery(RadiometricTarget radiometricTarget) {
+        UpdateBuilder spql = new UpdateBuilder();
+        
+        Node graph = NodeFactory.createURI(Contexts.RADIOMETRIC_TARGETS.toString());
+        Resource radiometricTargetUri = ResourceFactory.createResource(radiometricTarget.getUri());
+        
+        spql.addDelete(graph, radiometricTargetUri, RDFS.label, radiometricTarget.getLabel());
         
         for (Property property : radiometricTarget.getProperties()) {
-            query += "<" + radiometricTarget.getUri() + "> <" + property.getRelation() + "> ?v" + radiometricTarget.getProperties().indexOf(property) + " . ";
-        }
+            if (property.getValue() != null) {
+                org.apache.jena.rdf.model.Property propertyRelation = ResourceFactory.createProperty(property.getRelation());
                 
-        query += " }";
+                if (property.getRdfType() != null) {
+                    Node propertyValue = NodeFactory.createURI(property.getValue());
+                    spql.addDelete(graph, radiometricTargetUri, propertyRelation, propertyValue);
+                    spql.addDelete(graph, propertyValue, RDF.type, property.getRdfType());
+                } else {
+                    Literal propertyValue = ResourceFactory.createStringLiteral(property.getValue());
+                    spql.addDelete(graph, radiometricTargetUri, propertyRelation, propertyValue);
+                }
+            }
+        }
         
-        LOGGER.debug(query);
+        UpdateRequest request = spql.buildRequest();
+        LOGGER.debug(request.toString());
         
-        return query;
+        return request;
     }
     
     /**
@@ -381,9 +423,9 @@ public class RadiometricTargetDAOSesame extends DAOSesame<RadiometricTarget> {
      * @return the Radiometric Target informations
      */
     public RadiometricTarget getRadiometricTarget(String radiometricTargetUri) {
-        PropertyDAOSesame propertyDAOSesame = new PropertyDAOSesame();
+        PropertyDAOSesame propertyDAOSesame = 
+                new PropertyDAOSesame(radiometricTargetUri);
         RadiometricTarget radiometricTarget = new RadiometricTarget();
-        propertyDAOSesame.uri = radiometricTargetUri;
         propertyDAOSesame.getAllPropertiesWithLabels(radiometricTarget, null);
         return radiometricTarget;
     }
@@ -395,8 +437,8 @@ public class RadiometricTargetDAOSesame extends DAOSesame<RadiometricTarget> {
      * @see RadiometricTargetDAOSesame#update(java.util.List)
      * @param newRadiometricTargetData the new radiometric target data
      * @param oldRadiometricTargetData the old radiometric target data
-     * @return the list of the status with the errors if some has been founded.
-     *         null if no error founded
+     * @return the list of the status with the errors if some has been found.
+     *         null if no error found
      */
     private List<Status> compareNewAndOldRadiometricTarget(RadiometricTarget newRadiometricTargetData, RadiometricTarget oldRadiometricTargetData) {
         //Check each new radiometric target property to see if it has the same number or more occurences than the oldRadiometric.
@@ -468,21 +510,21 @@ public class RadiometricTargetDAOSesame extends DAOSesame<RadiometricTarget> {
             //If a property has a null value, the relation will be deleted. 
             //\SILEX:info
             List<Status> compareNewToOldRadiometricTarget = compareNewAndOldRadiometricTarget(radiometricTarget, oldRadiometricTarget);
-            if (compareNewToOldRadiometricTarget.isEmpty()) { //No error has been founded
+            if (compareNewToOldRadiometricTarget.isEmpty()) { //No error has been found
                 //1. genereate query to delete already existing data
                 //SILEX:info
                 //We only delete the already existing data received by the client. 
                 //It means that we delete only the properties given by the client.
                 //\SILEX:info
-                String deleteQuery = prepareDeleteQuery(radiometricTarget);
+                UpdateRequest deleteQuery = prepareDeleteQuery(oldRadiometricTarget);
 
                 //2. generate query to insert new data
                 //SILEX:info
                 //Insert only the triplets with a not null value. 
                 //\SILEX:info
-                SPARQLUpdateBuilder insertQuery = prepareInsertQuery(radiometricTarget);            
+                UpdateRequest insertQuery = prepareInsertQuery(radiometricTarget);            
                 try {
-                    Update prepareDelete = getConnection().prepareUpdate(deleteQuery);
+                    Update prepareDelete = getConnection().prepareUpdate(deleteQuery.toString());
                     Update prepareUpdate = getConnection().prepareUpdate(QueryLanguage.SPARQL, insertQuery.toString());
                     prepareDelete.execute();
                     prepareUpdate.execute();
@@ -492,7 +534,7 @@ public class RadiometricTargetDAOSesame extends DAOSesame<RadiometricTarget> {
                     annotationUpdate = false;
                     updateStatus.add(new Status(StatusCodeMsg.QUERY_ERROR, StatusCodeMsg.ERR, "Malformed update query: " + e.getMessage()));
                 }
-            } else { //errors has been founded
+            } else { //errors has been found
                 updateStatus.addAll(compareNewToOldRadiometricTarget);
                 annotationUpdate = false;
             }
@@ -530,14 +572,14 @@ public class RadiometricTargetDAOSesame extends DAOSesame<RadiometricTarget> {
     /**
      * Update the given radiometric targets in the triplestore
      * @param radiometricTargets
-     * @return the update result. Message error if errors founded in data
+     * @return the update result. Message error if errors found in data
      *         the list of the generated uri of the radiometric targets if the update has been done
      */
     public POSTResultsReturn checkAndUpdate(List<RadiometricTarget> radiometricTargets) {
         POSTResultsReturn checkResult = check(radiometricTargets);
         if (checkResult.getDataState()) {
             return update(radiometricTargets);
-        } else { //errors founded in data
+        } else { //errors found in data
             return checkResult;
         }
     }
@@ -580,7 +622,7 @@ public class RadiometricTargetDAOSesame extends DAOSesame<RadiometricTarget> {
             BindingSet bindingSet = result.next();
             uri = bindingSet.getValue(URI).stringValue();
         }
-        
+
         if (uri == null) {
             return 0;
         } else {
