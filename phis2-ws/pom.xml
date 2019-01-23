@@ -130,6 +130,7 @@
             <artifactId>swagger-jersey2-jaxrs</artifactId>
             <version>1.5.13</version>
         </dependency>
+        
         <!-- LOGS -->
         <dependency>
             <groupId>ch.qos.logback</groupId>
