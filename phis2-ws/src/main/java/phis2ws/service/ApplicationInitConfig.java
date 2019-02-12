@@ -17,7 +17,6 @@ import java.io.File;
 import java.io.IOException;
 import javax.annotation.PostConstruct;
 import javax.inject.Singleton;
-import javax.ws.rs.ApplicationPath;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 import org.glassfish.hk2.api.InjectionResolver;
@@ -42,7 +41,7 @@ import phis2ws.service.resources.brapi.TraitsResourceService;
 import phis2ws.service.view.brapi.Status;
 import phis2ws.service.view.brapi.form.ResponseFormPOST;
 
-@ApplicationPath("/rest")
+//@ApplicationPath("/rest")
 public class ApplicationInitConfig extends ResourceConfig {
 
     final static String PROPERTY_FILE_NAME = "service";
