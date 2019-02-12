@@ -195,11 +195,6 @@
             <version>2.0.0.Final</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.jena</groupId>
-            <artifactId>jena-querybuilder</artifactId>
-            <version>3.9.0</version>
-        </dependency>
-        <dependency>
             <groupId>org.opensilex</groupId>
             <artifactId>opensilex-core</artifactId>
             <version>${revision}</version>
