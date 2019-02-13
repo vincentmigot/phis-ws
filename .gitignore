@@ -51,3 +51,6 @@ logs/*
 #target
 phis2-ws/target/
 phis2-ws/src/main/profiles/dev/config\.properties
+/phis2-ws/nbproject/
+
+*.flattened-pom.xml
