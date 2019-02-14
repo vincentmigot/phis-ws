@@ -200,6 +200,13 @@
             <artifactId>opensilex-core</artifactId>
             <version>${revision}</version>
         </dependency>
+        <dependency>
+            <groupId>org.opensilex</groupId>
+            <artifactId>opensilex-core</artifactId>
+            <version>${revision}</version>
+            <scope>test</scope>
+            <classifier>tests</classifier>
+        </dependency>
     </dependencies>
 
     <build>
