@@ -28,8 +28,6 @@
         <script src='../webjars/swagger-ui/2.2.10-1/lib/jsoneditor.min.js' type='text/javascript'></script>
         <script src='../webjars/swagger-ui/2.2.10-1/lib/marked.js' type='text/javascript'></script>
         <script src='../webjars/swagger-ui/2.2.10-1/lib/swagger-oauth.js' type='text/javascript'></script>
-        <!--personal js file-->
-        <script src="../js/config.js"></script>
         <!-- Some basic translations -->
         <!-- <script src='../webjars/swagger-ui/2.2.10-1/lang/translator.js' type='text/javascript'></script> -->
         <!-- <script src='../webjars/swagger-ui/2.2.10-1/lang/ru.js' type='text/javascript'></script> -->
@@ -50,12 +48,15 @@
             
             $(function () {
                 // add by Arnaud Charleroy to mask swagger search bar
-                var config = getConfig();
                 var url = window.location.search.match(/url=([^&]+)/);
                 if (url && url.length > 1) {
                     url = decodeURIComponent(url[1]);
                 } else {
-                    url = window.location.protocol + "//" + window.location.host + "/" + config.serviceURLName + "/" + config.resourcesURLName+ "/swagger.json";
+                    var pathParts = window.location.pathname.split("/");
+                    pathParts.pop();
+                    pathParts.pop();
+                    pathParts.shift();
+                    url = window.location.protocol + "//" + window.location.host + "/" + pathParts.join("/") + "/rest/swagger.json";
                 }
 
                 //SILEX:warning
