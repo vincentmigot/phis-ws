@@ -1,5 +1,5 @@
 //******************************************************************************
-//                           Phis2Module.java
+//                           PhisWsModule.java
 // OpenSILEX
 // Copyright © INRA 2019
 // Creation date: 01 jan. 2019
@@ -7,12 +7,13 @@
 //******************************************************************************
 package phis2ws.service;
 
+import java.util.Arrays;
+import java.util.List;
 import javax.inject.Singleton;
-import org.opensilex.core.Application;
-import org.opensilex.core.OpenSilexModule;
 import org.glassfish.hk2.api.InjectionResolver;
 import org.glassfish.hk2.api.TypeLiteral;
 import org.glassfish.hk2.utilities.binding.AbstractBinder;
+import org.opensilex.core.OpenSilexModule;
 import phis2ws.service.authentication.Session;
 import phis2ws.service.injection.SessionFactory;
 import phis2ws.service.injection.SessionInject;
@@ -25,13 +26,23 @@ import phis2ws.service.resources.brapi.TraitsResourceService;
 import phis2ws.service.resources.brapi.VariableResourceService;
 
 /**
- *
- * @author vincent
+ * Phis module
  */
-public class Phis2Module implements OpenSilexModule {
+public class PhisWsModule extends OpenSilexModule {
 
     @Override
-    public void init(Application app) {
+    public void init() {
+        PhisPostgreSQLConfig pgConfig = app.loadConfig("phis-ws-pg", PhisPostgreSQLConfig.class);
+        PhisServicesConfig serviceConfig = app.loadConfig("phis-ws-service", PhisServicesConfig.class);
+        
+        PropertiesFileManager.setOpensilexConfigs(
+            pgConfig, 
+            serviceConfig, 
+            app.getCoreConfig(), 
+            app.getMongoDBConfig(), 
+            app.getRDF4JConfig()
+        );
+        
         app.register(new AbstractBinder() {
             @Override
             protected void configure() {
@@ -41,7 +52,7 @@ public class Phis2Module implements OpenSilexModule {
                 bind(SessionInjectResolver.class)
                         .to(new TypeLiteral<InjectionResolver<SessionInject>>() {
                         })
-                        .in(Singleton.class); 
+                        .in(Singleton.class);
                 //Brapi services injection
                 bind(CallsResourceService.class).to(BrapiCall.class);
                 bind(TokenResourceService.class).to(BrapiCall.class);
@@ -52,4 +63,19 @@ public class Phis2Module implements OpenSilexModule {
         });
     }
 
+    @Override
+    public List<String> getServicesPackagesToScan() {
+        return Arrays.asList(new String[]{
+            "phis2ws.service.resources"
+        });
+    }
+
+    @Override
+    public List<String> getPackagesToScan() {
+        return Arrays.asList(new String[]{
+            "phis2ws.service.json",
+            "phis2ws.service.resources.request.filters"
+        });
+    }
+    
 }

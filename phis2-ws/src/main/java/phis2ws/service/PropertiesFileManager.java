@@ -28,6 +28,9 @@ import java.util.Properties;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 import org.apache.tomcat.jdbc.pool.PoolProperties;
+import org.opensilex.core.config.ApplicationCoreConfig;
+import org.opensilex.core.config.MongoDBConfig;
+import org.opensilex.core.config.RDF4JConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,7 +58,6 @@ public class PropertiesFileManager {
         //property is in /src/main/resources By default in maven project
 
         final String filePath = "/" + fileName + ".properties";
-//        System.err.println(filePath);
 
         try {
             inputStream = PropertiesFileManager.class.getResourceAsStream(filePath);
@@ -113,28 +115,281 @@ public class PropertiesFileManager {
     }
 
     /**
-     * Lit un fichier de configuration et retourne d'un attribut spécifique
+     * Phis postGreSQL configuration
+     */
+    private static PhisPostgreSQLConfig pgConfig;
+    
+    /**
+     * Phis service configuration
+     */
+    private static PhisServicesConfig phisConfig;
+    
+    /**
+     * Application core config
+     */
+    private static ApplicationCoreConfig coreConfig;
+    
+    /**
+     * Application mongo configuration
+     */
+    private static MongoDBConfig mongoConfig;
+    
+    /**
+     * Application rdf4j configuration
+     */
+    private static RDF4JConfig rdf4jConfig;
+    
+    /**
+     * Setter for all configuration needed by phis
+     * 
+     * @param pgConfig PostGreSQL config
+     * @param phisConfig Phis service configuration
+     * @param coreConfig Application core config
+     * @param mongoConfig MongoDB configuration
+     * @param rdf4jConfig RDF4J configuration
+     */
+    public static void setOpensilexConfigs(
+        PhisPostgreSQLConfig pgConfig,
+        PhisServicesConfig phisConfig,
+        ApplicationCoreConfig coreConfig,
+        MongoDBConfig mongoConfig,
+        RDF4JConfig rdf4jConfig
+    ) {
+        PropertiesFileManager.pgConfig = pgConfig;
+        PropertiesFileManager.phisConfig = phisConfig;
+        PropertiesFileManager.coreConfig = coreConfig;
+        PropertiesFileManager.mongoConfig = mongoConfig;
+        PropertiesFileManager.rdf4jConfig = rdf4jConfig;
+    }
+    
+    /**
+     * This method used to read configuration from file
+     * It as been updated to use new YAML config system in modularity
+     * So now this method map old properties to new ones
      *
-     * @param fileName nom du fichier à lire
-     * @param prop nom de lattribut
-     * @return null | Properties
+     * @param fileName Config section
+     * @param prop property name
+     * @return null | property value
      */
     public static String getConfigFileProperty(String fileName, String prop) {
-        try {
-            final Properties sqlProps = parseFile(fileName);
-            final StringBuilder strBuilder = new StringBuilder();
-            strBuilder.append(sqlProps.getProperty(prop));
-            return strBuilder.toString();
-        } catch (Exception ex) {
-            LOGGER.error(ex.getMessage(), ex);
-            ex.printStackTrace();
-            // Si les paramètres ne sont pas récupérés le web service propage une exception INTERNAL_SERVER_ERROR
-            throw new WebApplicationException(Response
-                    .status(Response.Status.INTERNAL_SERVER_ERROR)
-                    .entity("Error : Cannot find properties in the configuration file " + fileName + " for the wanted database\n" + ex.getMessage()).build());
+        String value = null;
+        
+        switch (fileName) {
+            case "service":
+                value = getServiceProperty(prop);
+                break;
+                
+            case "phis_sql_config":
+                value = getPgSQLProperty(prop);
+                break;
+                
+            case "sesame_rdf_config":
+                value = getRDF4JProperty(prop);
+                break;
+                
+            case "mongodb_nosql_config":
+                value = getMongoProperty(prop);
+                break;                
+                
+            default:
+                break;
         }
+        
+        return value;
     }
 
+    /**
+     * Map old properties which where con
+     * @param prop
+     * @return 
+     */
+    private static String getServiceProperty(String prop) {
+        String value = null;
+        
+        switch (prop) {
+            case "sessionTime":
+                value = phisConfig.sessionTime();
+                break;
+            case "waitingFileTime":
+                value = phisConfig.waitingFileTime();
+                break;                
+            case "uploadFileServerIP":
+                value = phisConfig.uploadFileServerIP();
+                break;
+            case "uploadFileServerUsername":
+                value = phisConfig.uploadFileServerUsername();
+                break;
+            case "uploadFileServerPassword":
+                value = phisConfig.uploadFileServerPassword();
+                break;
+            case "uploadFileServerDirectory":
+                value = phisConfig.uploadFileServerDirectory();
+                break;
+            case "layerFileServerDirectory":
+                value = phisConfig.layerFileServerDirectory();
+                break;
+            case "layerFileServerAddress":
+                value = phisConfig.layerFileServerAddress();
+                break;
+            case "defaultLanguage":
+                value = coreConfig.defaultLanguage();
+                break;
+            case "uploadImageServerDirectory":
+                value = phisConfig.uploadImageServerDirectory();
+                break;
+            case "imageFileServerDirectory":
+                value = phisConfig.imageFileServerDirectory();
+                break;     
+            case "webAppApiDocsName":
+                value = phisConfig.webAppApiDocsName();
+                break;
+            case "gnpisPublicKeyFileName":
+                value = phisConfig.gnpisPublicKeyFileName();
+                break;   
+            case "phisPublicKeyFileName":
+                value = phisConfig.phisPublicKeyFileName();
+                break;   
+            default:
+                break;
+        }
+        
+        return value;
+    }
+
+    private static String getPgSQLProperty(String prop) {
+         String value = null;
+        
+        switch (prop) {
+            case "driver":
+                value = pgConfig.driver();
+                break;                 
+            case "url":
+                value = "jdbc:postgresql://" + pgConfig.host() 
+                        + ":" + pgConfig.port() 
+                        + "/" + pgConfig.database();
+                break;
+            case "username":
+                value = pgConfig.username();
+                break;                
+            case "password":
+                value = pgConfig.password();
+                break;
+            case "testWhileIdle":
+                value = "" + pgConfig.testWhileIdle();
+                break;
+            case "testOnBorrow":
+                value = "" + pgConfig.testOnBorrow();
+                break;
+            case "testOnReturn":
+                value = "" + pgConfig.testOnReturn();
+                break;                
+            case "validationQuery":
+                value = pgConfig.validationQuery();
+                break;
+            case "validationInterval":
+                value = "" + pgConfig.validationInterval();
+                break;
+            case "timeBetweenEvictionRunsMillis":
+                value = "" + pgConfig.timeBetweenEvictionRunsMillis();
+                break;
+            case "maxActive":
+                value = "" + pgConfig.maxActive();
+                break;
+            case "minIdle":
+                value = "" + pgConfig.minIdle();
+                break;
+            case "maxIdle":
+                value = "" + pgConfig.maxIdle();
+                break;
+            case "maxWait":
+                value = "" + pgConfig.maxWait();
+                break;
+            case "initialSize":
+                value = "" + pgConfig.initialSize();
+                break;
+            case "removeAbandoned":
+                value = "" + pgConfig.removeAbandoned();
+                break;
+            case "removeAbandonedTimeout":
+                value = "" + pgConfig.removeAbandonedTimeout();
+                break;
+            case "logAbandoned":
+                value = "" + pgConfig.logAbandoned();
+                break;
+            case "jmxEnabled":
+                value = "" + pgConfig.jmxEnabled();
+                break;
+            case "maxAge":
+                value = "" + pgConfig.maxAge();
+                break;
+            case "jdbcInterceptors":
+                value = pgConfig.jdbcInterceptors();
+                break;
+            default:
+                break;
+        }
+        
+        return value;
+    }
+
+    private static String getRDF4JProperty(String prop) {
+        String value = null;
+        
+        switch (prop) {
+            case "sesameServer":
+                value = "http://" + rdf4jConfig.host() 
+                        + ":" + rdf4jConfig.port() 
+                        + "/" + rdf4jConfig.path();
+                break;
+            case "repositoryID":
+                value = rdf4jConfig.repository();
+                break;                
+            case "infrastructure":
+                value = phisConfig.infrastructure();
+                break;
+            case "baseURI":
+                value = phisConfig.ontologyBaseURI();
+                break;
+            case "vocabularyContext":
+                value = phisConfig.vocabulary();
+                break;
+            default:
+                break;
+        }
+        
+        return value;
+    }
+
+    private static String getMongoProperty(String prop) {
+         String value = null;
+        
+        switch (prop) {
+            case "url":
+                value = "mongodb://" + mongoConfig.host() 
+                        + ":" + mongoConfig.port();
+                break;
+            case "db":
+                value = mongoConfig.database();
+                break;                
+            case "documents":
+                value = phisConfig.documentsCollection();
+                break;
+            case "provenance":
+                value = phisConfig.provenanceCollection();
+                break;
+            case "data":
+                value = phisConfig.dataCollection();
+                break;
+            case "images":
+                value = phisConfig.imagesCollection();
+                break;
+            default:
+                break;
+        }
+        
+        return value;
+    }
+    
     /**
      * Lit un fichier de configuration et retourne l'url pour une base de donnée
      * SQL contenant le nom, l'utilisateur et le serveur
@@ -240,5 +495,4 @@ public class PropertiesFileManager {
             return null;
         }
     }
-
 }

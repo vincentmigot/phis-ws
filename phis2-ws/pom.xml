@@ -31,37 +31,6 @@
         </repository>
     </repositories>
 
-    <profiles>
-        <!-- The configuration of the development profile -->
-        <profile>
-            <id>dev</id>
-            <!-- The development profile is active by default -->
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
-            <properties>
-                <build.profile.id>dev</build.profile.id>
-                <target.war.name>${project.artifactId}</target.war.name>
-            </properties>
-        </profile>
-        <!-- The configuration of the production profile -->
-        <profile>
-            <id>prod</id>
-            <properties>
-                <build.profile.id>prod</build.profile.id>
-                <target.war.name>${project.artifactId}-${project.version}</target.war.name>
-            </properties>
-        </profile>
-        <!-- The configuration of the testing profile -->
-        <profile>
-            <id>test</id>
-            <properties>
-                <build.profile.id>test</build.profile.id>
-                <target.war.name>${project.artifactId}</target.war.name>
-            </properties>
-        </profile>
-    </profiles>
-
     <dependencies>
         <dependency>
             <groupId>org.apache.tomcat</groupId>
@@ -210,28 +179,6 @@
     </dependencies>
 
     <build>
-        <finalName>${target.war.name}</finalName>
-        <filters>
-            <filter>../../src/main/config/${build.profile.id}/config.properties</filter>
-        </filters>
-        <resources>
-            <resource>
-                <filtering>true</filtering>
-                <directory>src/main/resources</directory>
-            </resource>
-            <resource>
-                <filtering>true</filtering>
-                <directory>../../src/main/config</directory>
-                <includes>
-                    <include>${build.profile.id}/config.properties</include>
-                    <include>${build.profile.id}/opensilex.yaml</include>
-                </includes>
-            </resource>
-            <resource>
-                <directory>../../src/main/config/${build.profile.id}</directory>
-                <targetPath>config</targetPath>
-            </resource>
-        </resources>
         <plugins>
             <!--Code coverage @see https://www.eclemma.org/jacoco/trunk/index.html -->
             <plugin>
@@ -271,16 +218,6 @@
                 <version>3.2.2</version>
                 <configuration>
                     <failOnMissingWebXml>false</failOnMissingWebXml>
-                    <webResources>
-                        <resource>
-                            <filtering>true</filtering>
-                            <targetPath>js</targetPath>
-                            <directory>src/main/resources/js</directory>
-                            <includes>
-                                <include>**/*.js</include>
-                            </includes>
-                        </resource>
-                    </webResources>
                 </configuration>
             </plugin>
         </plugins>
