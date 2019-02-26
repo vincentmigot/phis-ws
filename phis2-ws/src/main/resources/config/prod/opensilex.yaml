@@ -1,0 +1,54 @@
+## Legacy service
+phis-ws-service:
+    ontologyBaseURI: http://www.opensilex.org/
+    vocabulary: http://www.opensilex.org/vocabulary/oeso
+
+    sessionTime: 12000
+    waitingFileTime: 50000
+    
+    uploadFileServerIP: localhost
+    
+    uploadFileServerUsername: <TO DEFINE>
+    uploadFileServerPassword: <TO DEFINE>
+    uploadFileServerDirectory: <TO DEFINE>
+    
+    layerFileServerDirectory: <TO DEFINE>
+    layerFileServerAddress: <TO DEFINE>
+    
+    uploadImageServerDirectory: <TO DEFINE>
+    imageFileServerDirectory: <TO DEFINE>
+    
+    webAppApiDocsName: <TO DEFINE>
+    
+    gnpisPublicKeyFileName: GnpIS-JWT-public-key
+    phisPublicKeyFileName: Phis-JWT-public-key
+
+    documentsCollection: documents
+    provenanceCollection: provenance
+    dataCollection: rawData
+    imagesCollection: images
+
+phis-ws-pg:
+    host: localhost
+    port: 5432
+    driver: org.postgresql.Driver
+    database: <TO DEFINE>
+    username: <TO DEFINE>
+    password: <TO DEFINE>
+    jmxEnabled: true
+    testWhileIdle: true
+    testOnBorrow: true
+    validationQuery: SELECT 1
+    testOnReturn: false
+    validationInterval: 30000
+    timeBetweenEvictionRunsMillis: 10000
+    maxActive: 3
+    minIdle: 1
+    maxIdle: 1
+    initialSize: 1
+    maxWait: 20000
+    removeAbandonedTimeout: 60
+    maxAge: 3000
+    logAbandoned: true
+    removeAbandoned: true
+    jdbcInterceptors: org.apache.tomcat.jdbc.pool.interceptor.ConnectionState;org.apache.tomcat.jdbc.pool.interceptor.StatementFinalizer

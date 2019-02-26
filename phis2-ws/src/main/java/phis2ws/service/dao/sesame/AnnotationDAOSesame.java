@@ -10,6 +10,7 @@ package phis2ws.service.dao.sesame;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.logging.Level;
 import org.apache.jena.arq.querybuilder.UpdateBuilder;
 import org.apache.jena.datatypes.xsd.XSDDatatype;
 import org.apache.jena.graph.Node;
@@ -18,6 +19,7 @@ import org.apache.jena.rdf.model.Literal;
 import org.apache.jena.rdf.model.Property;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.rdf.model.ResourceFactory;
+import org.apache.jena.sparql.AlreadyExists;
 import org.apache.jena.update.UpdateRequest;
 import org.apache.jena.vocabulary.DCTerms;
 import org.apache.jena.vocabulary.RDF;
@@ -40,7 +42,7 @@ import phis2ws.service.dao.phis.UserDaoPhisBrapi;
 import phis2ws.service.documentation.StatusCodeMsg;
 import phis2ws.service.ontologies.Contexts;
 import phis2ws.service.ontologies.Oa;
-import phis2ws.service.ontologies.Vocabulary;
+import phis2ws.service.ontologies.Oeso;
 import phis2ws.service.utils.sparql.SPARQLQueryBuilder;
 import phis2ws.service.resources.dto.AnnotationDTO;
 import phis2ws.service.utils.JsonConverter;
@@ -242,7 +244,11 @@ public class AnnotationDAOSesame extends DAOSesame<Annotation> {
 
         for (AnnotationDTO annotationDTO : annotationsDTO) {
             Annotation annotation = annotationDTO.createObjectFromDTO();
-            annotation.setUri(uriGenerator.generateNewInstanceUri(Vocabulary.CONCEPT_ANNOTATION.toString(), null, null));
+            try {
+                annotation.setUri(uriGenerator.generateNewInstanceUri(Oeso.CONCEPT_ANNOTATION.toString(), null, null));
+            } catch (Exception ex) { //In the annotations case, no exception should be raised
+                annotationInsert = false;
+            }
 
             UpdateRequest query = prepareInsertQuery(annotation);
             Update prepareUpdate = this.getConnection().prepareUpdate(QueryLanguage.SPARQL, query.toString());
@@ -287,7 +293,7 @@ public class AnnotationDAOSesame extends DAOSesame<Annotation> {
         
         Node graph = NodeFactory.createURI(Contexts.ANNOTATIONS.toString());
         Resource annotationUri = ResourceFactory.createResource(annotation.getUri());
-        Node annotationConcept = NodeFactory.createURI(Vocabulary.CONCEPT_ANNOTATION.toString());
+        Node annotationConcept = NodeFactory.createURI(Oeso.CONCEPT_ANNOTATION.toString());
         
         spql.addInsert(graph, annotationUri, RDF.type, annotationConcept);
         
