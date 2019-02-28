@@ -26,7 +26,7 @@ import phis2ws.service.resources.brapi.TraitsResourceService;
 import phis2ws.service.resources.brapi.VariableResourceService;
 
 /**
- * Phis module
+ * Phis opensilex module implementation
  */
 public class PhisWsModule extends OpenSilexModule {
 
@@ -34,15 +34,15 @@ public class PhisWsModule extends OpenSilexModule {
     public void init() {
         PhisPostgreSQLConfig pgConfig = app.loadConfig("phis-ws-pg", PhisPostgreSQLConfig.class);
         PhisServicesConfig serviceConfig = app.loadConfig("phis-ws-service", PhisServicesConfig.class);
-        
+
         PropertiesFileManager.setOpensilexConfigs(
-            pgConfig, 
-            serviceConfig, 
-            app.getCoreConfig(), 
-            app.getMongoDBConfig(), 
-            app.getRDF4JConfig()
+                pgConfig,
+                serviceConfig,
+                app.getCoreConfig(),
+                app.getMongoDBConfig(),
+                app.getRDF4JConfig()
         );
-        
+
         app.register(new AbstractBinder() {
             @Override
             protected void configure() {
@@ -77,5 +77,5 @@ public class PhisWsModule extends OpenSilexModule {
             "phis2ws.service.resources.request.filters"
         });
     }
-    
+
 }
