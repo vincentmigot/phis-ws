@@ -2,7 +2,8 @@
 phis-ws-service:
     ontologyBaseURI: http://www.opensilex.org/
     vocabulary: http://www.opensilex.org/vocabulary/oeso
-
+    infrastructure: <TO DEFINE>
+    
     sessionTime: 12000
     waitingFileTime: 50000
     
