@@ -7,6 +7,8 @@
 //******************************************************************************
 package opensilex.service.dao;
 
+import com.google.common.collect.Lists;
+import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.BasicDBObjectBuilder;
 import com.mongodb.MongoClient;
@@ -40,6 +42,7 @@ import opensilex.service.utils.POSTResultsReturn;
 import opensilex.service.utils.UriGenerator;
 import opensilex.service.view.brapi.Status;
 import opensilex.service.model.Data;
+import opensilex.service.view.model.provenance.Provenance;
 
 /**
  * Data DAO.
@@ -443,5 +446,20 @@ public class DataDAO extends MongoDAO<Data> {
     @Override
     public void validate(List<Data> objects) throws DAOPersistenceException, DAODataErrorAggregateException, DAOPersistenceException, ResourceAccessDeniedException {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    public List<Provenance> getAllProvenancesForScientificObjects(String variableUri, List<String> soURIs) {
+        BasicDBList docIds = new BasicDBList();
+        docIds.addAll(soURIs);
+        
+        BasicDBObject inClause = new BasicDBObject("$in", docIds);
+        BasicDBObject query = new BasicDBObject(DB_FIELD_OBJECT, inClause);
+            
+        String variableCollection = getCollectionFromVariable(variableUri);
+        List<String> provenanceUris = Lists.newArrayList(database.getCollection(variableCollection).distinct(DB_FIELD_PROVENANCE, query, String.class));
+        
+        ProvenanceDAO provenanceDAO = new ProvenanceDAO();
+        
+        return provenanceDAO.getAllProvenancesByURIs(provenanceUris);
     }
 }

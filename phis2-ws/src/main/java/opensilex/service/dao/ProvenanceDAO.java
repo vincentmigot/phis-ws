@@ -7,6 +7,7 @@
 //******************************************************************************
 package opensilex.service.dao;
 
+import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.MongoClient;
 import com.mongodb.MongoException;
@@ -397,7 +398,7 @@ public class ProvenanceDAO extends MongoDAO<Provenance> {
      * @param jsonValueFilter
      * @return the list of the provenances corresponding to the given search parameters
      */
-    public ArrayList<Provenance> getProvenances(Provenance searchProvenance, String jsonValueFilter) {
+    public List<Provenance> getProvenances(Provenance searchProvenance, String jsonValueFilter) {
         MongoCollection<Document> provenanceCollection = database.getCollection(provenanceCollectionName);
         // Get the filter query
         BasicDBObject query = searchQuery(searchProvenance, jsonValueFilter);
@@ -408,6 +409,10 @@ public class ProvenanceDAO extends MongoDAO<Provenance> {
         // Define pagination for the request
         provenancesMongo = provenancesMongo.skip(page * pageSize).limit(pageSize);
 
+        return buildProvenanceList(provenancesMongo);
+    }
+
+    private List<Provenance> buildProvenanceList(FindIterable<Document> provenancesMongo) {
         ArrayList<Provenance> provenances = new ArrayList<>();
         
         // For each document, create a Provenance instance and add it to the result list
@@ -427,8 +432,9 @@ public class ProvenanceDAO extends MongoDAO<Provenance> {
             }
         }
         return provenances;
-    }
 
+    }
+    
     @Override
     public List<Provenance> create(List<Provenance> objects) throws DAOPersistenceException, Exception {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
@@ -457,5 +463,20 @@ public class ProvenanceDAO extends MongoDAO<Provenance> {
     @Override
     public void validate(List<Provenance> objects) throws DAOPersistenceException, DAODataErrorAggregateException {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    List<Provenance> getAllProvenancesByURIs(List<String> provenanceUris) {
+        BasicDBList docIds = new BasicDBList();
+        docIds.addAll(provenanceUris);
+        
+        BasicDBObject inClause = new BasicDBObject("$in", docIds);
+        BasicDBObject query = new BasicDBObject(DB_FIELD_URI, inClause);
+            
+        MongoCollection<Document> provenanceCollection = database.getCollection(provenanceCollectionName);
+        
+        // Get paginated documents
+        FindIterable<Document> provenancesMongo = provenanceCollection.find(query);
+
+        return buildProvenanceList(provenancesMongo);
     }
 }

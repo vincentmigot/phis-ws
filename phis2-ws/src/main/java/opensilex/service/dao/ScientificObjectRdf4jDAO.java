@@ -1062,4 +1062,47 @@ public class ScientificObjectRdf4jDAO extends Rdf4jDAO<ScientificObject> {
     public void validate(List<ScientificObject> objects) throws DAOPersistenceException, DAODataErrorAggregateException {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
+    
+    public List<String> getAllScientificObjectURIsByExperiment(String experimentURI) {
+        SPARQLQueryBuilder sparqlQuery = new SPARQLQueryBuilder();
+        sparqlQuery.appendDistinct(true);
+        sparqlQuery.appendGraph(experimentURI);
+        sparqlQuery.appendSelect("?" + URI);
+        sparqlQuery.appendTriplet("?" + URI, Oeso.RELATION_PARTICIPATES_IN.toString(),experimentURI, null);
+        
+        TupleQuery tupleQuery = getConnection().prepareTupleQuery(QueryLanguage.SPARQL, sparqlQuery.toString());
+        List<String> allUris = new ArrayList<>();
+            
+        try (TupleQueryResult result = tupleQuery.evaluate()) {
+            while (result.hasNext()) {
+                BindingSet bindingSet = result.next();
+                allUris.add(bindingSet.getValue(URI).stringValue());
+            }
+        }
+        
+        return allUris;
+    }
+
+    public Map<String, String> getLabelsByUris(List<String> uris) {
+        Map<String, String> returnMap = new HashMap<>();
+        if (uris.size() > 0) {
+            SPARQLQueryBuilder sparqlQuery = new SPARQLQueryBuilder();
+            sparqlQuery.appendDistinct(true);
+            sparqlQuery.appendSelect("?" + URI);
+            sparqlQuery.appendSelect("?" + ALIAS);
+            sparqlQuery.appendTriplet("?" + URI, Rdfs.RELATION_LABEL.toString(), "?" + ALIAS, null);
+            sparqlQuery.appendFilter("?" + URI + " IN (<" + String.join(">,<", uris) + ">)");
+
+            TupleQuery tupleQuery = getConnection().prepareTupleQuery(QueryLanguage.SPARQL, sparqlQuery.toString());
+            List<String> allUris = new ArrayList<>();
+
+            try (TupleQueryResult result = tupleQuery.evaluate()) {
+                while (result.hasNext()) {
+                    BindingSet bindingSet = result.next();
+                    returnMap.put(bindingSet.getValue(URI).stringValue(), bindingSet.getValue(ALIAS).stringValue());
+                }
+            }
+        }
+        return returnMap;
+    }
 }

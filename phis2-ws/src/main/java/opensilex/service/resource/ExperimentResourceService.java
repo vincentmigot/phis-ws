@@ -15,6 +15,7 @@ import io.swagger.annotations.ApiParam;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import java.util.ArrayList;
+import java.util.List;
 import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
 import javax.validation.constraints.Min;
@@ -37,7 +38,9 @@ import opensilex.service.configuration.DateFormat;
 import opensilex.service.configuration.DateFormats;
 import opensilex.service.configuration.DefaultBrapiPaginationValues;
 import opensilex.service.configuration.GlobalWebserviceValues;
+import opensilex.service.dao.DataDAO;
 import opensilex.service.dao.ExperimentSQLDAO;
+import opensilex.service.dao.ScientificObjectRdf4jDAO;
 import opensilex.service.documentation.DocumentationAnnotation;
 import opensilex.service.documentation.StatusCodeMsg;
 import opensilex.service.resource.dto.experiment.ExperimentDTO;
@@ -52,6 +55,8 @@ import opensilex.service.view.brapi.form.ResponseFormGET;
 import opensilex.service.view.brapi.form.ResponseFormPOST;
 import opensilex.service.result.ResultForm;
 import opensilex.service.model.Experiment;
+import opensilex.service.resource.dto.provenance.ProvenanceDTO;
+import opensilex.service.view.model.provenance.Provenance;
 
 /**
  * Experiment resource service.
@@ -496,4 +501,59 @@ public class ExperimentResourceService extends ResourceService {
             }
         }
     }
+    
+    @GET
+    @Path("{uri}/provenances/{variable}")
+    @ApiOperation(value = "Get provenance list for the given experiment and variable",
+                  notes = "Retrieve all provenance corresponding to the experiment and variable URIs")
+    @ApiResponses(value = {
+        @ApiResponse(code = 200, message = "Retrieve all provenance", response = ProvenanceDTO.class, responseContainer = "List"),
+        @ApiResponse(code = 400, message = DocumentationAnnotation.BAD_USER_INFORMATION),
+        @ApiResponse(code = 401, message = DocumentationAnnotation.USER_NOT_AUTHORIZED),
+        @ApiResponse(code = 500, message = DocumentationAnnotation.ERROR_FETCH_DATA)
+    })
+    @ApiImplicitParams({
+        @ApiImplicitParam(name = GlobalWebserviceValues.AUTHORIZATION, required = true,
+                          dataType = GlobalWebserviceValues.DATA_TYPE_STRING, paramType = GlobalWebserviceValues.HEADER,
+                          value = DocumentationAnnotation.ACCES_TOKEN,
+                          example = GlobalWebserviceValues.AUTHENTICATION_SCHEME + " ")
+    })
+    @Produces(MediaType.APPLICATION_JSON)  
+    public Response getProvenances(
+        @PathParam("uri") @URL @Required String experiment,
+        @PathParam("variable") @URL @Required String variable
+    ) {
+        ScientificObjectRdf4jDAO soDAO = new ScientificObjectRdf4jDAO();
+        List<String> soURIs = soDAO.getAllScientificObjectURIsByExperiment(experiment);
+        
+        DataDAO dataDAO = new DataDAO();
+        List<Provenance> provenances = dataDAO.getAllProvenancesForScientificObjects(variable, soURIs);
+
+        // 4. Initialize returned provenances
+        ArrayList<ProvenanceDTO> list = new ArrayList<>();
+        ArrayList<Status> statusList = new ArrayList<>();
+        ResultForm<ProvenanceDTO> getResponse;
+        
+        if (provenances == null) {
+            // Request failure
+            getResponse = new ResultForm<>(0, 0, list, true, 0);
+            return noResultFound(getResponse, statusList);
+        } else if (provenances.isEmpty()) {
+            // No results
+            getResponse = new ResultForm<>(0, 0, list, true, 0);
+            return noResultFound(getResponse, statusList);
+        } else {
+            // Convert all provenances object to DTO's
+            provenances.forEach((provenance) -> {
+                list.add(new ProvenanceDTO(provenance));
+            });
+            
+            // Return list of DTO
+            getResponse = new ResultForm<>(list.size(), 0, list, true, list.size());
+            getResponse.setStatus(statusList);
+            return Response.status(Response.Status.OK).entity(getResponse).build();
+        }
+        
+    }     
+    
 }

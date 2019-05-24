@@ -269,24 +269,24 @@ public class ProvenanceResourceService extends ResourceService {
         int totalCount = provenanceDAO.count(searchProvenance, jsonValueFilter);
         
         // 3. Get environment measures page list
-        ArrayList<Provenance> measures = provenanceDAO.getProvenances(searchProvenance, jsonValueFilter);
+        List<Provenance> provenances = provenanceDAO.getProvenances(searchProvenance, jsonValueFilter);
         
         // 4. Initialize returned provenances
         ArrayList<ProvenanceDTO> list = new ArrayList<>();
         ArrayList<Status> statusList = new ArrayList<>();
         ResultForm<ProvenanceDTO> getResponse;
         
-        if (measures == null) {
+        if (provenances == null) {
             // Request failure
             getResponse = new ResultForm<>(0, 0, list, true, 0);
             return noResultFound(getResponse, statusList);
-        } else if (measures.isEmpty()) {
+        } else if (provenances.isEmpty()) {
             // No results
             getResponse = new ResultForm<>(0, 0, list, true, 0);
             return noResultFound(getResponse, statusList);
         } else {
             // Convert all provenances object to DTO's
-            measures.forEach((provenance) -> {
+            provenances.forEach((provenance) -> {
                 list.add(new ProvenanceDTO(provenance));
             });
             

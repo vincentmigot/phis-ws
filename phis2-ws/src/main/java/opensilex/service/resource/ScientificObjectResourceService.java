@@ -16,6 +16,7 @@ import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
 import javax.validation.constraints.Min;
@@ -45,6 +46,7 @@ import opensilex.service.view.brapi.form.AbstractResultForm;
 import opensilex.service.view.brapi.form.ResponseFormPOST;
 import opensilex.service.result.ResultForm;
 import opensilex.service.model.ScientificObject;
+import opensilex.service.resource.dto.UriLabelDTO;
 import opensilex.service.resource.dto.scientificObject.ScientificObjectDTO;
 import opensilex.service.resource.dto.scientificObject.ScientificObjectPostDTO;
 import opensilex.service.resource.dto.scientificObject.ScientificObjectPutDTO;
@@ -281,6 +283,57 @@ public class ScientificObjectResourceService extends ResourceService {
             });
             
             getResponse = new ResultForm<>(scientificObjectDaoSesame.getPageSize(), scientificObjectDaoSesame.getPage(), scientificObjectsToReturn, false);
+            if (getResponse.getResult().dataSize() == 0) {
+                return noResultFound(getResponse, statusList);
+            } else {
+                getResponse.setStatus(statusList);
+                return Response.status(Response.Status.OK).entity(getResponse).build();
+            }
+        }
+    }
+    
+    @POST
+    @Path("labels")
+    @ApiOperation(value = "Get all scientific objects of the list of given URI",
+                  notes = "Retrieve all scientific objects authorized for the user corresponding to the user corresponding to the searched params given")
+    @ApiResponses(value = {
+        @ApiResponse(code = 200, message = "Retrieve all scientific objects", response = ScientificObjectDTO.class, responseContainer = "List"),
+        @ApiResponse(code = 400, message = DocumentationAnnotation.BAD_USER_INFORMATION),
+        @ApiResponse(code = 401, message = DocumentationAnnotation.USER_NOT_AUTHORIZED),
+        @ApiResponse(code = 500, message = DocumentationAnnotation.ERROR_FETCH_DATA)
+    })
+    @ApiImplicitParams({
+         @ApiImplicitParam(name = GlobalWebserviceValues.AUTHORIZATION, required = true,
+                         dataType = GlobalWebserviceValues.DATA_TYPE_STRING, paramType = GlobalWebserviceValues.HEADER,
+                         value = DocumentationAnnotation.ACCES_TOKEN,
+                         example = GlobalWebserviceValues.AUTHENTICATION_SCHEME + " ")
+    })
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getScientificObjectsLabelsList(
+        @ApiParam(value = "Search by URI", example = DocumentationAnnotation.EXAMPLE_SCIENTIFIC_OBJECT_URI) @URL List<String> uris
+    ) {
+        ArrayList<UriLabelDTO> scientificObjectsToReturn = new ArrayList<>();
+        ArrayList<Status> statusList = new ArrayList<>();
+        ResultForm<UriLabelDTO> getResponse;
+        
+        ScientificObjectRdf4jDAO scientificObjectDaoSesame = new ScientificObjectRdf4jDAO();
+        scientificObjectDaoSesame.user = userSession.getUser();
+        
+        Map<String, String> scientificObjectsLabels = scientificObjectDaoSesame.getLabelsByUris(uris);
+        
+        if (scientificObjectsLabels == null) { //Request failure
+            getResponse = new ResultForm<>(0, 0, scientificObjectsToReturn, true);
+            return noResultFound(getResponse, statusList);
+        } else if (scientificObjectsLabels.isEmpty()) { //No result
+            getResponse = new ResultForm<>(0, 0, scientificObjectsToReturn, true);
+            return noResultFound(getResponse, statusList);
+        } else {
+            //Convert all scientific objects to DTO
+            scientificObjectsLabels.forEach((uri, label) -> {
+                scientificObjectsToReturn.add(new UriLabelDTO(uri, label));
+            });
+            
+            getResponse = new ResultForm<>(scientificObjectsToReturn.size(), 0, scientificObjectsToReturn, true, scientificObjectsToReturn.size());
             if (getResponse.getResult().dataSize() == 0) {
                 return noResultFound(getResponse, statusList);
             } else {
